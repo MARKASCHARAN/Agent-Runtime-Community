@@ -1,0 +1,10 @@
+{
+  "name": "@agent-runtime/python-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Python SDK wrapper for Turborepo",
+  "scripts": {
+    "test": "python3 -m venv .venv && source .venv/bin/activate && pip install -e \".[test,adapters]\" && pytest",
+    "test:cov": "python3 -m venv .venv && source .venv/bin/activate && pip install -e \".[test,adapters]\" && pytest --cov=agent_runtime --cov-report=term-missing"
+  }
+}
