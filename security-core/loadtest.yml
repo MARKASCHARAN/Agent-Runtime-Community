@@ -1,0 +1,45 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 30
+      arrivalRate: 10
+      rampTo: 50
+      name: "Warm up API"
+    - duration: 60
+      arrivalRate: 50
+      name: "Sustained peak load"
+  payload:
+    # We could supply a CSV of agent IDs, but for the benchmark we use the E2E mock or static headers
+    path: "test/agents.csv"
+    fields:
+      - "agentId"
+    skipHeader: true
+    # If the file doesn't exist, we fallback
+    loadAll: true
+
+scenarios:
+  - name: "Agent Identity & Policy Workflow"
+    flow:
+      - post:
+          url: "/identity/access"
+          headers:
+            "x-api-key": "benchmark-key"
+            "x-project-id": "proj_benchmark"
+          json:
+            actorId: "agent_benchmark"
+            tool: "stripe"
+            scope: "refunds"
+          capture:
+            - json: "$.token"
+              as: "jitToken"
+      - post:
+          url: "/policy/evaluate"
+          headers:
+            "x-api-key": "{{ jitToken }}"
+            "x-project-id": "proj_benchmark"
+          json:
+            policySetId: "global-policy"
+            actionIntent: "stripe:refunds"
+            context:
+              amount: 100
+              currency: "usd"

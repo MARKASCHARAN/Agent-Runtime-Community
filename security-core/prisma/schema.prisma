@@ -1,0 +1,217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model PolicySet {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  version     Int      @default(1)
+  rules       Json
+  projectId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  decisions PolicyDecision[]
+
+  @@index([projectId, createdAt])
+}
+
+model PolicyDecision {
+  id               String    @id @default(uuid())
+  policySetId      String
+  policySet        PolicySet @relation(fields: [policySetId], references: [id])
+  projectId        String
+  actionIntent     String
+  context          Json
+  outcome          String
+  decisionTrace    Json?
+  isSimulation     Boolean   @default(false)
+  traceId          String    @default(uuid())
+  resolvedBy       String?
+  resolvedAt       DateTime?
+  executionEventId String?
+  createdAt        DateTime  @default(now())
+
+  @@index([policySetId, createdAt])
+  @@index([projectId, createdAt])
+}
+
+model ExecutionEvent {
+  id                  String   @id @default(uuid())
+  replayCorrelationId String
+  eventType           String
+  payload             Json
+  actorId             String
+  projectId           String
+  traceId             String?
+  parentTraceId       String?
+  createdAt           DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([replayCorrelationId])
+}
+
+model ToolTrustProfile {
+  id             String   @id @default(uuid())
+  toolIdentity   String
+  publisher      String
+  schemaHash     String
+  riskScore      Int      @default(0)
+  trustStatus    String
+  projectId      String
+  lastVerifiedAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  @@unique([toolIdentity, projectId])
+  @@index([projectId, createdAt])
+}
+
+model MemoryMutation {
+  id             String   @id @default(uuid())
+  agentId        String
+  mutationType   String
+  key            String
+  previousValue  String?
+  newValue       String?
+  sourceMetadata Json
+  anomalyScore   Float    @default(0.0)
+  projectId      String
+  createdAt      DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([agentId, createdAt])
+}
+
+model WebhookConfig {
+  id        String   @id @default(uuid())
+  url       String
+  secret    String
+  events    String // Comma-separated list of events: 'POLICY_DECISION,MEMORY_ANOMALY'
+  projectId String
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+}
+
+model AgentIdentity {
+  id           String   @id @default(uuid())
+  clientId     String   @unique
+  hashedSecret String
+  scopes       String // Comma-separated list of scopes, e.g., 'mcp:read,policy:evaluate'
+  projectId    String
+  createdAt    DateTime @default(now())
+
+  tokens AgentToken[]
+  agents AgentRecord[]
+}
+
+model AgentToken {
+  id              String   @id @default(uuid())
+  agentIdentityId String
+  token           String   @unique
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  agentIdentity AgentIdentity @relation(fields: [agentIdentityId], references: [id])
+}
+
+model AgentRole {
+  id             String   @id @default(uuid())
+  name           String // e.g., 'Financial Agent', 'Customer Support'
+  description    String?
+  allowedIntents String // Comma-separated list or '*'
+  maxRiskScore   Int      @default(100)
+  projectId      String
+  createdAt      DateTime @default(now())
+
+  agents AgentRecord[]
+
+  @@index([projectId])
+}
+
+model AgentRecord {
+  id               String   @id @default(uuid())
+  name             String
+  description      String?
+  status           String   @default("ACTIVE") // 'ACTIVE', 'SUSPENDED', 'RETIRED'
+  currentRiskScore Int      @default(0)
+  agentIdentityId  String?
+  roleId           String?
+  projectId        String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  role          AgentRole?     @relation(fields: [roleId], references: [id])
+  agentIdentity AgentIdentity? @relation(fields: [agentIdentityId], references: [id])
+  threatEvents  ThreatEvent[]
+
+  @@index([projectId, status])
+}
+
+model ThreatEvent {
+  id            String   @id @default(uuid())
+  agentRecordId String
+  reason        String
+  riskDelta     Int
+  projectId     String
+  createdAt     DateTime @default(now())
+
+  agent AgentRecord @relation(fields: [agentRecordId], references: [id])
+
+  @@index([projectId, agentRecordId])
+}
+
+model McpRegistry {
+  id         String   @id @default(uuid())
+  name       String // The intent or tool name, e.g., 'github_mcp_create_repo'
+  publisher  String // e.g., 'GitHub', 'Internal', 'Stripe'
+  schemaHash String // Cryptographic SHA256 of the exact tool schema
+  status     String   @default("APPROVED") // 'APPROVED', 'REVOKED'
+  projectId  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([projectId, name])
+}
+
+model DlpViolation {
+  id            String   @id @default(uuid())
+  agentRecordId String? // Optional if the agent isn't fully identified, but usually present
+  intentName    String
+  violationType String // e.g., 'CREDIT_CARD', 'AWS_SECRET'
+  severity      String // 'HIGH', 'MEDIUM', 'LOW'
+  projectId     String
+  createdAt     DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+model AgentCheckpoint {
+  id        String   @id @default(uuid())
+  agentId   String
+  state     Json
+  projectId String
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([agentId, createdAt])
+}
+
+model AgentJitToken {
+  id        String   @id @default(uuid())
+  agentId   String
+  tool      String
+  scope     String
+  token     String   @unique
+  expiresAt DateTime
+  projectId String
+  createdAt DateTime @default(now())
+
+  @@index([agentId, createdAt])
+  @@index([projectId])
+}
